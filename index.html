@@ -139,29 +139,44 @@
         <option value="Manga">Manga</option>
       </select>
       <select id="filterRating" onchange="renderLibrary()" class="bg-[#FAF8F5] border border-[#D8D0C5] rounded-lg p-3 text-base text-[#2C2523] focus:outline-none focus:ring-2 focus:ring-[#8C7A6B]">
-        <option value="All">All Ratings</option>
-        <option value="5">5 Stars</option>
-        <option value="4">4+ Stars</option>
-        <option value="3">3+ Stars</option>
-      </select>
-    </div>
+        <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      onSnapshot, 
+      doc, 
+      setDoc, 
+      deleteDoc, 
+      updateDoc,
+      arrayUnion 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    <!-- Media Grid -->
-    <div id="mediaGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-  </div>
+const firebaseConfig = {
+  apiKey: "AIzaSyDjG8LfQ3LWiXAOktjSx7UWC1qTLjMyly8",
+  authDomain: "media-tracker-14d70.firebaseapp.com",
+  projectId: "media-tracker-14d70",
+  storageBucket: "media-tracker-14d70.firebasestorage.app",
+  messagingSenderId: "373578519059",
+  appId: "1:373578519059:web:3fe39f25843f343fe8e5e6",
+  measurementId: "G-45728ENTPN"
+};
 
-  <!-- Detailed View Modal Pop-up -->
-  <div id="detailModal" onclick="handleModalClick(event)" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-[#FAF8F5] border border-[#E2D9CC] rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl relative">
-      <button onclick="closeDetailModal()" class="absolute top-4 right-4 text-2xl font-bold text-[#7A6E65] hover:text-[#2C2523] bg-[#EFECE6] hover:bg-[#E2D9CC] rounded-full w-9 h-9 flex items-center justify-center transition">✕</button>
-      <div id="modalContent"></div>
-    </div>
-  </div>
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const mediaCol = collection(db, "mediaHavenItems");
 
-  <script>
-    let library = JSON.parse(localStorage.getItem('mediaHavenLibrary')) || [];
+    let library = [];
 
-    function toggleEpisodeFields() {
+    // Real-time Cloud Synchronization
+    onSnapshot(mediaCol, (snapshot) => {
+      library = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderLibrary();
+    }, (error) => {
+      console.error("Firestore error:", error);
+    });
+
+    window.toggleEpisodeFields = function() {
       const type = document.getElementById('type').value;
       const epFields = document.getElementById('epFields');
       if (type === 'TV Series' || type === 'Anime' || type === 'Manga') {
@@ -169,7 +184,7 @@
       } else {
         epFields.classList.add('hidden');
       }
-    }
+    };
 
     function renderStars(rating) {
       const num = parseFloat(rating) || 0;
@@ -234,18 +249,14 @@
       };
 
       if (editId) {
-        const index = library.findIndex(i => i.id == editId);
-        if (index !== -1) {
-          library[index] = { ...library[index], ...itemData };
-        }
+        await updateDoc(doc(db, "mediaHavenItems", String(editId)), itemData);
       } else {
-        library.unshift({ id: Date.now(), rewatchHistory: [], ...itemData });
+        const id = Date.now().toString();
+        await setDoc(doc(db, "mediaHavenItems", id), { ...itemData, rewatchHistory: [] });
       }
 
-      localStorage.setItem('mediaHavenLibrary', JSON.stringify(library));
       btn.disabled = false;
       resetForm();
-      renderLibrary();
     });
 
     function getBorderColorClass(type) {
@@ -259,8 +270,8 @@
       }
     }
 
-    function openDetailModal(id) {
-      const item = library.find(i => i.id === id);
+    window.openDetailModal = function(id) {
+      const item = library.find(i => i.id === String(id));
       if (!item) return;
 
       const modalContent = document.getElementById('modalContent');
@@ -320,20 +331,20 @@
       `;
 
       document.getElementById('detailModal').classList.remove('hidden');
-    }
+    };
 
-    function closeDetailModal() {
+    window.closeDetailModal = function() {
       document.getElementById('detailModal').classList.add('hidden');
-    }
+    };
 
-    function handleModalClick(e) {
+    window.handleModalClick = function(e) {
       if (e.target.id === 'detailModal') {
         closeDetailModal();
       }
-    }
+    };
 
-    function editItem(id) {
-      const item = library.find(i => i.id === id);
+    window.editItem = function(id) {
+      const item = library.find(i => i.id === String(id));
       if (!item) return;
 
       document.getElementById('editItemId').value = item.id;
@@ -346,6 +357,118 @@
       document.getElementById('seasons').value = item.seasons || '';
       document.getElementById('episodes').value = item.episodes || '';
       document.getElementById('seriesGroup').value = item.seriesGroup !== 'Standalone' ? item.seriesGroup : '';
+      document.getElementById('tags').value = item.tags ? item.tags.join(', ') : '';
+      document.getElementById('coverUrl').value = item.cover.includes('placeholder') ? '' : item.cover;
+      document.getElementById('notes').value = item.notes || '';
+
+      document.getElementById('submitBtn').innerText = 'Update Entry';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+      toggleEpisodeFields();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.resetForm = function() {
+      document.getElementById('mediaForm').reset();
+      document.getElementById('editItemId').value = '';
+      document.getElementById('submitBtn').innerText = '+ Save Entry';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      toggleEpisodeFields();
+    };
+
+    window.addRewatchDate = async function(id) {
+      const rewatchDate = prompt("Enter rewatch/reread date (YYYY-MM-DD):");
+      if (rewatchDate) {
+        const itemRef = doc(db, "mediaHavenItems", String(id));
+        await updateDoc(itemRef, {
+          rewatchHistory: arrayUnion(rewatchDate)
+        });
+      }
+    };
+
+    window.deleteItem = async function(id) {
+      if (confirm("Are you sure you want to delete this item?")) {
+        await deleteDoc(doc(db, "mediaHavenItems", String(id)));
+      }
+    };
+
+    window.renderLibrary = function() {
+      const grid = document.getElementById('mediaGrid');
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const typeFilter = document.getElementById('filterType').value;
+      const ratingFilter = document.getElementById('filterRating').value;
+
+      grid.innerHTML = '';
+
+      const filtered = library.filter(item => {
+        const matchesSearch = item.title.toLowerCase().includes(search) || 
+                              (item.seriesGroup && item.seriesGroup.toLowerCase().includes(search)) ||
+                              (item.tags && item.tags.some(t => t.toLowerCase().includes(search)));
+        const matchesType = typeFilter === 'All' || item.type === typeFilter;
+        
+        let matchesRating = true;
+        if (ratingFilter !== 'All') {
+          const minRating = parseFloat(ratingFilter);
+          const itemRating = parseFloat(item.rating || 0);
+          matchesRating = itemRating >= minRating;
+        }
+
+        return matchesSearch && matchesType && matchesRating;
+      });
+
+      filtered.forEach(item => {
+        const card = document.createElement('div');
+        const colorBorder = getBorderColorClass(item.type);
+        
+        card.className = `bg-[#FAF8F5] rounded-xl overflow-hidden shadow-sm border border-[#E2D9CC] ${colorBorder} flex flex-col justify-between`;
+
+        card.innerHTML = `
+          <div>
+            <div class="relative h-60 w-full bg-[#EFECE6] cursor-pointer" onclick="openDetailModal('${item.id}')">
+              <img src="${item.cover}" alt="${item.title}" class="w-full h-full object-cover">
+              <span class="absolute top-2 left-2 text-xs font-bold px-2.5 py-1 rounded bg-[#F4F1EA]/95 text-[#2C2523] border border-[#D8D0C5] shadow-sm">
+                ${item.status}
+              </span>
+            </div>
+            
+            <div class="p-5">
+              <div class="flex justify-between items-start gap-2">
+                <h3 onclick="openDetailModal('${item.id}')" class="text-xl font-bold text-[#2C2523] leading-snug cursor-pointer hover:underline">${item.title}</h3>
+                <div class="flex gap-2">
+                  <button onclick="editItem('${item.id}')" class="text-[#5C4E43] hover:text-[#2C2523] text-sm font-bold">Edit</button>
+                  <button onclick="deleteItem('${item.id}')" class="text-[#A39589] hover:text-[#B85B56] text-base font-bold">✕</button>
+                </div>
+              </div>
+
+              <div class="mt-1">
+                ${renderStars(item.rating)}
+              </div>
+
+              <p class="text-sm text-[#5C4E43] font-semibold mt-1">Series/Group: ${item.seriesGroup || 'Standalone'}</p>
+
+              ${(item.type === 'TV Series' || item.type === 'Anime') ? `<p class="text-xs text-[#7A6E65] mt-1 font-medium">📺 ${item.seasons || 0} Season(s) • ${item.episodes || 0} Ep(s)</p>` : ''}
+              ${item.type === 'Manga' ? `<p class="text-xs text-[#7A6E65] mt-1 font-medium">📖 ${item.episodes || 0} Chapter(s)</p>` : ''}
+
+              <div class="bg-[#F4F1EA] rounded p-3 text-xs space-y-1 my-3 text-[#544A42] border border-[#E2D9CC]">
+                <p><strong>Start/Release:</strong> ${item.startDate}</p>
+                <p><strong>Finished:</strong> ${item.finishDate}</p>
+                ${item.rewatchHistory && item.rewatchHistory.length > 0 ? `<p class="text-[#4E7357] font-semibold"><strong>Rewatched:</strong> ${item.rewatchHistory.length} time(s)</p>` : ''}
+              </div>
+
+              <div class="flex gap-2 mt-2">
+                <button onclick="openDetailModal('${item.id}')" class="text-xs flex-1 bg-[#5C4E43] hover:bg-[#4A3E3D] text-[#FAF8F5] font-semibold py-2 rounded transition">
+                  📖 View Details
+                </button>
+                <button onclick="addRewatchDate('${item.id}')" class="text-xs bg-[#EFECE6] hover:bg-[#E2D9CC] text-[#2C2523] font-semibold px-3 py-2 rounded transition border border-[#D8D0C5]">
+                  + Log Rewatch
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    };
+  </script>
       document.getElementById('tags').value = item.tags ? item.tags.join(', ') : '';
       document.getElementById('coverUrl').value = item.cover.includes('placeholder') ? '' : item.cover;
       document.getElementById('notes').value = item.notes || '';
