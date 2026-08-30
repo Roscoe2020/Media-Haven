@@ -139,8 +139,13 @@
         <option value="Manga">Manga</option>
       </select>
       <select id="filterRating" onchange="renderLibrary()" class="bg-[#FAF8F5] border border-[#D8D0C5] rounded-lg p-3 text-base text-[#2C2523] focus:outline-none focus:ring-2 focus:ring-[#8C7A6B]">
-        <script type="module">
+       <!-- Firebase Web SDKs & App Logic -->
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithEmailAndPassword 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { 
       getFirestore, 
       collection, 
@@ -152,7 +157,8 @@
       arrayUnion 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const firebaseConfig = {
+    // 🔑 1. REPLACE WITH YOUR FIREBASE KEYS
+    const firebaseConfig = {
   apiKey: "AIzaSyDjG8LfQ3LWiXAOktjSx7UWC1qTLjMyly8",
   authDomain: "media-tracker-14d70.firebaseapp.com",
   projectId: "media-tracker-14d70",
@@ -163,9 +169,14 @@ const firebaseConfig = {
 };
 
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
     const db = getFirestore(app);
-    const mediaCol = collection(db, "mediaHavenItems");
 
+    // 🔑 2. REPLACE WITH THE USER EMAIL & PASSWORD YOU CREATED IN FIREBASE
+    signInWithEmailAndPassword(auth, "sciclunasamantha@gmail.com", "#Roscoe2020")
+      .catch((error) => console.error("Authentication error:", error));
+
+    const mediaCol = collection(db, "mediaHavenItems");
     let library = [];
 
     // Real-time Cloud Synchronization
